@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OPORD Training Simulator</title>
+  <style>
+    body {
+      font-family: Arial;
+      margin: 20px;
+    }
+
+    .page {
+      display: none;
+    }
+
+    .active {
+      display: block;
+    }
+
+    .timer {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      font-size: 20px;
+      font-weight: bold;
+      background: black;
+      color: white;
+      padding: 10px;
+    }
+
+    textarea {
+      width: 80%;
+      height: 80px;
+      margin-bottom: 10px;
+    }
+
+    .frago-box {
+      white-space: pre-wrap;
+      background: #f2f2f2;
+      padding: 10px;
+      width: 80%;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="timer" id="timer">00:00</div>
+
+<!-- PAGE 1: FRAGO -->
+<div id="fragoPage" class="page active">
+  <h1>FRAGO</h1>
+
+  <div class="frago-box" id="fragoText"></div>
+
+  <button onclick="startWARNO()">Proceed to WARNO</button>
+</div>
+
+<!-- PAGE 2: WARNO -->
+<div id="warnoPage" class="page">
+  <h1>WARNO</h1>
+
+  <textarea id="warnoInput" placeholder="Write your WARNO here..."></textarea>
+
+  <br>
+  <button onclick="startOPORD()">Proceed to OPORD</button>
+</div>
+
+<!-- PAGE 3: OPORD -->
+<div id="opordPage" class="page">
+  <h1>OPORD</h1>
+
+  <h1>OPORD</h1>
+
+<h3>1. Situation</h3>
+<h4>Terrain</h4>
+<textarea id="sit_terrain"></textarea>
+<h4>Weather</h4>
+<textarea id="sit_weather"></textarea>
+<h4>Enemy Forces</h4>
+<h5># of Personnel</h5>
+<textarea id="enemy_#"></textarea>
+<h5>What are they doing?</h5>
+<textarea id="enemy_doing"></textarea>
+<h5>IDF?</h5>
+<textarea id="enemy_IDF"></textarea>
+<h4>Friendly Forces</h4>
+<h5>Higher mission (Company mission statement from FRAGO)</h5>
+<textarea id="FF_highermission"></textarea>
+<h5>Adjacent Units</h5>
+<textarea id="FF_adjacent"></textarea>
+
+<h3>2. Mission</h3>
+<textarea id="op_mission"></textarea>
+
+<h3>3. Execution</h3>
+<textarea id="op_execution"></textarea>
+
+<h3>4. Sustainment</h3>
+<textarea id="op_sustainment"></textarea>
+
+<h3>5. Command & Signal</h3>
+<textarea id="op_command"></textarea>
+
+<br>
+<button onclick="grade()">Submit OPORD</button>
+
+
+</div>
+
+<!-- RESULTS -->
+<div id="resultsPage" class="page">
+  <h1>Results</h1>
+  <h2 id="score"></h2>
+</div>
+
+<script>
+
+let currentTimer;
+let timeLeft;
+
+// Sample FRAGO
+const frago = `
+FRAGO Ambush at OBJ Deer (You are 1st PLT):
+
+1. <strong><u>Situation.</strong></u>
+
+  a. <strong>Enemy Forces:</strong> An Ariana Fire team (3-5 personnel) has been 
+  observed moving along an unnamed trail in vicinity of 16T FM 1475 8153. Based on pattern analysis it is likely that this enemy Fire Team will move from East to west on the unnamed trail during the times of 1530 and 1540. Once engaged they will most likely attempt to break contact.
+
+2. <strong><u>Mission.</strong></u> NLT APR 2025, A Company, Bronco Battalion, destroys enemy forces in the Company AO in order to set the conditions for continued offensive operations against Ariana and eventual transition of the AO to Atropian Security Forces.
+
+3. <strong><u>Execution.</strong></u>
+  a. <strong>Commander's Intent.</strong> No change
+  
+  b. <strong>Concept of the Operation.</strong> The purpose of this operation is to prevent the enemy from conducting resupply operations. PLTs will accompish this by conducting simultaneous ambushes of enemy squads operating in the PLT AO. At the end of the mission, PLTs will move back to ORPs to reconsolidate, submit reports, and receive follow-on instructions
+  
+  c. <strong>Scheme of Maneuver.</strong> Platoons wil SP NLT 1440 and move to their respective abmush locations. AMbuses will be emplaced NLT 1530. After ambush complete or 1540, PLTs will displace and return to ORP to submit reports and receive follow-on instructions
+  
+  d. <strong>Scheme of Fires.</strong> No change
+  
+  e. <strong>Tasks to Subordinate Units</strong>
+    1. 1st PLT conducts an ambush NLT 1540 to destroy enemy team along RTE Red in vicinity of GRID 15T FM 1475 8153 in order to prevent enemy freedom of maneuver in the AO.
+    
+    2. 2nd PLT conducts a point ambush NLT 1540 to destroy enemy team along RTE Blue in vicinity of GRID 15T FM 1494 8149 in order to prevent enemy freedom of maneuver in the AO
+  
+    f. <strong>Coordinating Instructions</strong>
+    a. Submit target list worksheet to CO CP prior to SP.
+    
+    b. <strong>Timeline</strong>
+      1. NLT 1530 establish an ambush position
+      2. Remain in ambush position until enemy contact is initiated or if enemy does not appear, displace from ambush site and report location and "no contact" NLT 1540  
+
+4. <strong><u>Sustainment.</strong></u> No Change
+
+5. <strong><u>Command and Signal.</strong></u> No Change      
+
+`;
+
+// SCENARIO DATA (for grading)
+const scenario = {
+  warnoKeywords: ["enemy", "sector", "recon"],
+  opordKeywords: ["mission", "terrain", "movement", "enemy", "report"]
+};
+
+// PAGE CONTROL
+function showPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+}
+
+// TIMER SYSTEM
+function startTimer(seconds, nextFunction) {
+  clearInterval(currentTimer);
+  timeLeft = seconds;
+
+  currentTimer = setInterval(() => {
+    let min = Math.floor(timeLeft / 60);
+    let sec = timeLeft % 60;
+
+    document.getElementById("timer").innerText =
+      `${min}:${sec.toString().padStart(2, '0')}`;
+
+    timeLeft--;
+
+    if (timeLeft < 0) {
+      clearInterval(currentTimer);
+      nextFunction();
+    }
+  }, 1000);
+}
+
+// START
+document.getElementById("fragoText").innerHTML = frago;
+startTimer(420, startWARNO); // 7 min FRAGO
+
+// PAGE 1 → PAGE 2
+function startWARNO() {
+  showPage("warnoPage");
+  startTimer(420, startOPORD); // 7 min WARNO
+}
+
+// PAGE 2 → PAGE 3
+function startOPORD() {
+  showPage("opordPage");
+  startTimer(900, grade); // 15 min OPORD
+}
+
+// GRADING
+function grade() {
+  showPage("resultsPage");
+  clearInterval(currentTimer);
+
+  let situation = document.getElementById("op_situation").value.toLowerCase();
+  let mission = document.getElementById("op_mission").value.toLowerCase();
+  let execution = document.getElementById("op_execution").value.toLowerCase();
+  let sustainment = document.getElementById("op_sustainment").value.toLowerCase();
+  let command = document.getElementById("op_command").value.toLowerCase();
+
+  let score = 0;
+
+  // Situation
+  if (situation.includes("enemy")) score += 10;
+  if (situation.includes("terrain")) score += 5;
+
+  // Mission
+  if (mission.includes("mission")) score += 10;
+  if (mission.includes("purpose")) score += 5;
+
+  // Execution
+  if (execution.includes("movement")) score += 10;
+  if (execution.includes("plan")) score += 5;
+
+  // Sustainment
+  if (sustainment.includes("supply")) score += 5;
+
+  // Command & Signal
+  if (command.includes("radio")) score += 5;
+  if (command.includes("signal")) score += 5;
+
+  document.getElementById("score").innerText =
+    "Final Score: " + score + "/100";
+}
+
+</script>
+<p style="font-size:12px; text-align:center; margin-top:40px;">
+© 2026 Sasha Kuhlmann. All rights reserved.
+</p>
+
+</body>
+</html>
